@@ -2,10 +2,10 @@
 name = "librepods"
 version = "0.1.0"
 edition = "2024"
+default-run = "librepods"
 
 [dependencies]
 tokio = {version = "1.50.0", features = ["full"]}
-bluer = { version = "0.17.4", features = ["full"] }
 env_logger = {version = "0.11.10", features = ["auto-color"]}
 uuid = "1.23.0"
 log = "0.4.29"
@@ -22,6 +22,12 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 aes = "0.9.0-rc.4"
 futures = "0.3.32"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+bluer = { version = "0.17.4", features = ["full"] }
+
+[target.'cfg(target_os = "freebsd")'.dependencies]
+libc = "0.2"
 
 [profile.release]
 opt-level = "s"

@@ -10,7 +10,7 @@ use crate::ui::airpods::airpods_view;
 use crate::ui::messages::BluetoothUIMessage;
 use crate::ui::nothing::nothing_view;
 use crate::utils::{MyTheme, get_app_settings_path, get_devices_path};
-use bluer::{Address};
+use crate::bluetooth::Address;
 use iced::border::Radius;
 use iced::overlay::menu;
 use iced::widget::button::Style;

@@ -3,7 +3,7 @@ use crate::bluetooth::aacp::{AACPEvent, AACPManager, AirPodsLEKeys, ProximityKey
 use crate::media_controller::MediaController;
 use crate::ui::messages::BluetoothUIMessage;
 use crate::ui::tray::MyTray;
-use bluer::Address;
+use crate::bluetooth::Address;
 use ksni::Handle;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
@@ -105,15 +105,7 @@ impl AirPodsDevice {
             }
         }
 
-        let session = bluer::Session::new()
-            .await
-            .expect("Failed to get bluer session");
-        let adapter = session
-            .default_adapter()
-            .await
-            .expect("Failed to get default adapter");
-        let local_mac = adapter
-            .address()
+        let local_mac = crate::bluetooth::platform::local_address()
             .await
             .expect("Failed to get adapter address")
             .to_string();

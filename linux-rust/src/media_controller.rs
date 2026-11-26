@@ -303,6 +303,14 @@ impl MediaController {
 
     pub async fn activate_a2dp_profile(&self) {
         debug!("Entering activate_a2dp_profile");
+
+        // A2DP profile switching drives BlueZ cards exposed by PipeWire /
+        // PulseAudio. On FreeBSD, Bluetooth audio is routed by virtual_oss(8)
+        // instead, so there is no card profile to toggle.
+        if cfg!(not(target_os = "linux")) {
+            debug!("A2DP profile switching is not supported on this platform");
+            return;
+        }
         let state = self.state.lock().await;
 
         if state.connected_device_mac.is_empty() {
@@ -637,6 +645,14 @@ impl MediaController {
 
     pub async fn deactivate_a2dp_profile(&self) {
         debug!("Entering deactivate_a2dp_profile");
+
+        // A2DP profile switching drives BlueZ cards exposed by PipeWire /
+        // PulseAudio. On FreeBSD, Bluetooth audio is routed by virtual_oss(8)
+        // instead, so there is no card profile to toggle.
+        if cfg!(not(target_os = "linux")) {
+            debug!("A2DP profile switching is not supported on this platform");
+            return;
+        }
         let mut state = self.state.lock().await;
 
         if state.device_index.is_none() {

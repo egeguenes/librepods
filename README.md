@@ -58,6 +58,10 @@ The Linux version runs as a system tray app. Connect your AirPods and enjoy:
 
 For installation and detailed info, see the [Linux README](/linux/README.md).
 
+### FreeBSD
+
+The Rust app in [`linux-rust/`](/linux-rust) also runs natively on FreeBSD, using the netgraph Bluetooth stack (no BlueZ required). All AACP features (noise control, battery, ear detection, conversational awareness, renaming) are supported; see the [FreeBSD notes](/linux-rust/FREEBSD.md) for setup and current limitations.
+
 ### Android
 
 #### Screenshots
