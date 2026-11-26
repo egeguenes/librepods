@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# PROVIDE: librepods_btagent
+# REQUIRE: DAEMON
+# BEFORE: LOGIN
+# KEYWORD: shutdown
+#
+# Bluetooth security agent for LibrePods (Secure Simple Pairing + link
+# encryption). Replaces hcsecd(8); do not enable both.
+#
+# librepods_btagent_enable (bool):  Set to "YES" to enable. Default "NO".
+# librepods_btagent_node (str):     HCI node. Default "ubt0hci".
+# librepods_btagent_flags (str):    Extra flags, e.g. "--pair AA:BB:CC:DD:EE:FF".
+
+. /etc/rc.subr
+
+name="librepods_btagent"
+rcvar="librepods_btagent_enable"
+
+load_rc_config $name
+
+: ${librepods_btagent_enable:="NO"}
+: ${librepods_btagent_node:="ubt0hci"}
+
+pidfile="/var/run/${name}.pid"
+agent="/usr/local/sbin/librepods-btagent"
+procname="/usr/sbin/daemon"
+command="/usr/sbin/daemon"
+# -r: restart the agent if it exits (e.g. the adapter was not up yet).
+command_args="-r -R 5 -P ${pidfile} -o /var/log/librepods-btagent.log \
+    ${agent} --node ${librepods_btagent_node} ${librepods_btagent_flags}"
+
+run_rc_command "$1"

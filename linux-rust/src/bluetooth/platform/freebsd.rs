@@ -179,8 +179,71 @@ async fn probe_kind(address: Address) -> DeviceKind {
     DeviceKind::Other
 }
 
+/// How often to try reaching known AirPods that are not connected.
+const RECONNECT_INTERVAL: Duration = Duration::from_secs(15);
+
+/// AirPods addresses LibrePods has seen before (from devices.json).
+fn known_airpods() -> Vec<Address> {
+    let Ok(text) = std::fs::read_to_string(crate::utils::get_devices_path()) else {
+        return Vec::new();
+    };
+    let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    map.iter()
+        .filter(|(_, v)| v.get("type_").and_then(|t| t.as_str()) == Some("AirPods"))
+        .filter_map(|(k, _)| k.parse().ok())
+        .collect()
+}
+
+/// PSM of SDP, which needs no security.
+const SDP_PSM: u16 = 0x0001;
+
+/// BlueZ reconnects bonded devices by itself; netgraph doesn't, and AirPods
+/// don't connect to a computer on their own. Periodically page known AirPods
+/// by opening an SDP channel and holding it while librepods-btagent
+/// authenticates and encrypts the link; then `watch_devices` sees the
+/// encrypted link and opens AACP. Opening AACP directly does not work: AirPods
+/// answer "pending, security required" and then drop the link (reason 0x05)
+/// when the agent enables encryption in that state.
+async fn auto_connect() {
+    // Give the watcher a moment to report links that are already up.
+    tokio::time::sleep(POLL_INTERVAL * 2).await;
+    loop {
+        try_known_airpods().await;
+        tokio::time::sleep(RECONNECT_INTERVAL).await;
+    }
+}
+
+async fn try_known_airpods() {
+    {
+        let known = known_airpods();
+        if known.is_empty() {
+            return;
+        }
+        let connected: HashSet<Address> = match hci_nodes_async().await {
+            Ok(nodes) => nodes.into_iter().flat_map(|n| n.peers).map(|(a, _)| a).collect(),
+            Err(_) => return,
+        };
+        for address in known.into_iter().filter(|a| !connected.contains(a)) {
+            debug!("Trying to connect to known AirPods {}", address);
+            match L2capChannel::connect(address, SDP_PSM, PROBE_TIMEOUT).await {
+                Ok(channel) => {
+                    info!("Reconnected to {}", address);
+                    // Keep the link up until it is encrypted and the watcher
+                    // has opened AACP (which then keeps it up).
+                    tokio::time::sleep(POLL_INTERVAL * 3).await;
+                    drop(channel);
+                }
+                Err(e) => debug!("{} not reachable: {}", address, e),
+            }
+        }
+    }
+}
+
 pub async fn watch_devices(tx: UnboundedSender<DeviceEvent>) -> io::Result<()> {
     info!("Watching netgraph HCI nodes for ACL connections...");
+    tokio::spawn(auto_connect());
     let mut known: HashMap<Address, DeviceKind> = HashMap::new();
     // New links still waiting to become encrypted, with when we first saw them.
     let mut pending: HashMap<Address, Instant> = HashMap::new();

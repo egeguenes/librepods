@@ -1,5 +1,7 @@
 mod bluetooth;
 mod devices;
+#[cfg(target_os = "freebsd")]
+mod freebsd_audio;
 mod media_controller;
 mod ui;
 mod utils;
@@ -156,6 +158,11 @@ async fn async_main(
         });
     }
 
+    // FreeBSD: per-device audio routing (virtual_oss + PulseAudio + AVRCP).
+    #[cfg(target_os = "freebsd")]
+    let audio_sessions: Arc<tokio::sync::Mutex<HashMap<String, freebsd_audio::AudioSession>>> =
+        Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
     let (event_tx, mut event_rx) = unbounded_channel::<DeviceEvent>();
     let watcher = tokio::spawn(platform::watch_devices(event_tx));
     info!("Listening for new connections.");
@@ -163,6 +170,16 @@ async fn async_main(
     while let Some(event) = event_rx.recv().await {
         match event {
             DeviceEvent::Disconnected { address } => {
+                #[cfg(target_os = "freebsd")]
+                {
+                    let sessions = audio_sessions.clone();
+                    let key = address.to_string();
+                    tokio::spawn(async move {
+                        if let Some(s) = sessions.lock().await.remove(&key) {
+                            s.stop().await;
+                        }
+                    });
+                }
                 if let Err(e) = ui_tx.send(BluetoothUIMessage::DeviceDisconnected(address.to_string())) {
                     warn!("Failed to send DeviceDisconnected UI message: {:?}", e);
                 }
@@ -201,6 +218,20 @@ async fn async_main(
                     name.as_deref().unwrap_or("Unknown"),
                     addr_str
                 );
+                #[cfg(target_os = "freebsd")]
+                {
+                    let sessions = audio_sessions.clone();
+                    let key = addr_str.clone();
+                    tokio::spawn(async move {
+                        let mut sessions = sessions.lock().await;
+                        if let Some(old) = sessions.remove(&key) {
+                            old.stop().await;
+                        }
+                        if let Some(s) = freebsd_audio::AudioSession::start(address).await {
+                            sessions.insert(key, s);
+                        }
+                    });
+                }
                 let tray_handle = tray_handle.clone();
                 tokio::spawn(async move {
                     let airpods_device = AirPodsDevice::new(address, tray_handle, ui_tx.clone()).await;
